@@ -1,0 +1,5 @@
+# Ignorar archivos y carpetas de macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+__MACOSX/
