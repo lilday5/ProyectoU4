@@ -156,7 +156,7 @@ public class TParser extends Parser {
 			match(input,USAR,FOLLOW_USAR_in_usar55); 
 			ID2=(Token)match(input,ID,FOLLOW_ID_in_usar57); 
 
-			              System.out.println("USE DATABASE " + (ID2!=null?ID2.getText():null));
+			            //  System.out.println("USE DATABASE " + (ID2!=null?ID2.getText():null));
 			          
 			}
 
@@ -187,10 +187,10 @@ public class TParser extends Parser {
 			match(input,INICIO,FOLLOW_INICIO_in_tabla74); 
 
 			              System.out.println("CREATE TABLE " + (ID3!=null?ID3.getText():null));
-			              System.out.println(" (" + (ID3!=null?ID3.getText():null) + "_key INTEGER AUTOINCREMENT NOT NULL");
+			              System.out.println(" (" + (ID3 != null ? ID3.getText() : null) + "_key SERIAL PRIMARY KEY");
 
 			              Tabla t = new Tabla();
-			              t.nombre = (ID3!=null?ID3.getText():null);
+			              t.setNombre((ID3 != null ? ID3.getText() : null));
 			              tablas.add(t);
 			              tablaActual = t;
 			          
@@ -245,148 +245,112 @@ public class TParser extends Parser {
 	// $ANTLR start "campo"
 	// T.g:37:1: campo : id1= ID (tipo1= NUMERICO |tipo2= ALFABETICO |tipo3= FECHA |ref= ID ) ;
 	public final void campo() throws RecognitionException {
-		Token id1=null;
-		Token tipo1=null;
-		Token tipo2=null;
-		Token tipo3=null;
-		Token ref=null;
+		Token id1 = null;
+		Token tipo1 = null;
+		Token tipo2 = null;
+		Token tipo3 = null;
+		Token ref = null;
 
 		try {
-			// T.g:38:3: (id1= ID (tipo1= NUMERICO |tipo2= ALFABETICO |tipo3= FECHA |ref= ID ) )
-			// T.g:38:5: id1= ID (tipo1= NUMERICO |tipo2= ALFABETICO |tipo3= FECHA |ref= ID )
-			{
-			id1=(Token)match(input,ID,FOLLOW_ID_in_campo115); 
-			// T.g:38:12: (tipo1= NUMERICO |tipo2= ALFABETICO |tipo3= FECHA |ref= ID )
-			int alt3=4;
-			switch ( input.LA(1) ) {
-			case NUMERICO:
-				{
-				alt3=1;
-				}
-				break;
-			case ALFABETICO:
-				{
-				alt3=2;
-				}
-				break;
-			case FECHA:
-				{
-				alt3=3;
-				}
-				break;
-			case ID:
-				{
-				alt3=4;
-				}
-				break;
-			default:
-				NoViableAltException nvae =
-					new NoViableAltException("", 3, 0, input);
-				throw nvae;
+			// Leer el identificador del campo
+			id1 = (Token) match(input, ID, FOLLOW_ID_in_campo115);
+
+			// Detectar el tipo que sigue
+			int alt3 = 4;
+			switch (input.LA(1)) {
+				case NUMERICO:
+					alt3 = 1;
+					break;
+				case ALFABETICO:
+					alt3 = 2;
+					break;
+				case FECHA:
+					alt3 = 3;
+					break;
+				case ID:
+					alt3 = 4;
+					break;
+				default:
+					throw new NoViableAltException("", 3, 0, input);
 			}
+
 			switch (alt3) {
-				case 1 :
-					// T.g:38:13: tipo1= NUMERICO
-					{
-					tipo1=(Token)match(input,NUMERICO,FOLLOW_NUMERICO_in_campo120); 
-					}
-					break;
-				case 2 :
-					// T.g:38:30: tipo2= ALFABETICO
-					{
-					tipo2=(Token)match(input,ALFABETICO,FOLLOW_ALFABETICO_in_campo126); 
-					}
-					break;
-				case 3 :
-					// T.g:38:49: tipo3= FECHA
-					{
-					tipo3=(Token)match(input,FECHA,FOLLOW_FECHA_in_campo132); 
-					}
-					break;
-				case 4 :
-					// T.g:38:63: ref= ID
-					{
-					ref=(Token)match(input,ID,FOLLOW_ID_in_campo138); 
-					}
+				case 1: // NUMERICO → INTEGER
+					tipo1 = (Token) match(input, NUMERICO, FOLLOW_NUMERICO_in_campo120);
+					System.out.println(", " + id1.getText() + " INTEGER");
+					Atributo a1 = new Atributo();
+					a1.setNombre(id1.getText());
+					a1.setTipo("INTEGER");
+					tablaActual.agregarAtributo(a1);
 					break;
 
+				case 2: // ALFABETICO → VARCHAR(300)
+					tipo2 = (Token) match(input, ALFABETICO, FOLLOW_ALFABETICO_in_campo126);
+					System.out.println(", " + id1.getText() + " VARCHAR(300)");
+					Atributo a2 = new Atributo();
+					a2.setNombre(id1.getText());
+					a2.setTipo("VARCHAR(300)");
+					tablaActual.agregarAtributo(a2);
+					break;
+
+				case 3: // FECHA → DATE
+					tipo3 = (Token) match(input, FECHA, FOLLOW_FECHA_in_campo132);
+					System.out.println(", " + id1.getText() + " DATE");
+					Atributo a3 = new Atributo();
+					a3.setNombre(id1.getText());
+					a3.setTipo("DATE");
+					tablaActual.agregarAtributo(a3);
+					break;
+
+				case 4: // Referencia a otra tabla → FK
+					ref = (Token) match(input, ID, FOLLOW_ID_in_campo138);
+					System.out.println(", " + id1.getText() + "_id INTEGER REFERENCES " + ref.getText() + "(" + ref.getText() + "_key)");
+					Atributo a4 = new Atributo();
+					a4.setNombre(id1.getText());
+					a4.setTipo("ref(" + ref.getText() + ")");
+					tablaActual.agregarAtributo(a4);
+					break;
 			}
 
-
-			      if (tipo1 != null) {
-			         System.out.println(", " + (id1!=null?id1.getText():null) + " " + (tipo1!=null?tipo1.getText():null) );
-
-			         Atributo a  = new Atributo();
-			         a.nombreAtributo = (id1!=null?id1.getText():null);
-			         a.tipoAtributo = (tipo1!=null?tipo1.getText():null);
-			         tablaActual.atributos.add(a);
-			      } else if (tipo2 != null) {
-			         System.out.println(", " + (id1!=null?id1.getText():null) + " VARCHAR(300)" );
-
-			         Atributo a  = new Atributo();
-			         a.nombreAtributo = (id1!=null?id1.getText():null);
-			         a.tipoAtributo = (tipo2!=null?tipo2.getText():null);
-			         tablaActual.atributos.add(a);
-			      } else if (tipo3 != null) {
-			         System.out.println(", " + (id1!=null?id1.getText():null) + " DATE" );
-
-			         Atributo a  = new Atributo();
-			         a.nombreAtributo = (id1!=null?id1.getText():null);
-			         a.tipoAtributo = (tipo3!=null?tipo3.getText():null);
-			         tablaActual.atributos.add(a);
-			      } else if (ref != null) {
-			         System.out.println(", " + (id1!=null?id1.getText():null) + "_id INTEGER REFERENCES " + (ref!=null?ref.getText():null) + "(" + (ref!=null?ref.getText():null) + "_key)");
-
-			         Atributo a  = new Atributo();
-			         a.nombreAtributo = (id1!=null?id1.getText():null);
-			         a.tipoAtributo = "ref(" + (ref!=null?ref.getText():null) + ")";
-			         tablaActual.atributos.add(a);
-			      }
-			    
-			}
-
-		}
-		catch (RecognitionException re) {
+		} catch (RecognitionException re) {
 			reportError(re);
-			recover(input,re);
-		}
-		finally {
-			// do for sure before leaving
+			recover(input, re);
 		}
 	}
-	// $ANTLR end "campo"
+
+		// $ANTLR end "campo"
 
 
 
 	// $ANTLR start "cerrar"
 	// T.g:71:1: cerrar : CERRAR ;
 	public final void cerrar() throws RecognitionException {
-		try {
-			// T.g:71:10: ( CERRAR )
-			// T.g:71:12: CERRAR
-			{
-			match(input,CERRAR,FOLLOW_CERRAR_in_cerrar155); 
+    try {
+        match(input, CERRAR, FOLLOW_CERRAR_in_cerrar155);
 
-			              for (int i = 0; i < tablas.size(); i++) {
-			                  System.out.println("\nTabla: " + tablas.get(i).nombre);
-			                  List<Atributo> atribs = tablas.get(i).atributos;
-			                  for (int j = 0; j < atribs.size(); j++) {
-			                      System.out.print("<Atributo>  " + atribs.get(j).nombreAtributo);
-			                      System.out.println(" \t<TipoAtrib> " + atribs.get(j).tipoAtributo);
-			                  }
-			              }
-			          
-			}
+        // Construir resumen como texto (NO SQL)
+        StringBuilder resumen = new StringBuilder();
+        for (int i = 0; i < tablas.size(); i++) {
+            resumen.append("\nTabla: ").append(tablas.get(i).getNombre()).append("\n");
+            List<Atributo> atribs = tablas.get(i).getAtributos();
+            for (Atributo atrib : atribs) {
+                resumen.append("<Atributo>  ").append(atrib.getNombre());
+                resumen.append(" \t<TipoAtrib> ").append(atrib.getTipo()).append("\n");
+            }
+        }
 
-		}
-		catch (RecognitionException re) {
-			reportError(re);
-			recover(input,re);
-		}
-		finally {
-			// do for sure before leaving
-		}
-	}
+        // Mostrar resumen solo por consola (debug)
+        System.err.println("== RESUMEN DE TABLAS ==\n" + resumen.toString());
+
+    } catch (RecognitionException re) {
+        reportError(re);
+        recover(input, re);
+    }
+}
+
+
+
+
 	// $ANTLR end "cerrar"
 
 	// Delegated rules
@@ -412,4 +376,9 @@ public class TParser extends Parser {
 	public static final BitSet FOLLOW_FECHA_in_campo132 = new BitSet(new long[]{0x0000000000000002L});
 	public static final BitSet FOLLOW_ID_in_campo138 = new BitSet(new long[]{0x0000000000000002L});
 	public static final BitSet FOLLOW_CERRAR_in_cerrar155 = new BitSet(new long[]{0x0000000000000002L});
+
+	public List<Tabla> getTablas() {
+    	return tablas;
+	}
+
 }

@@ -1,3 +1,6 @@
+import javax.swing.filechooser.FileSystemView;
+import java.io.FileWriter;
+import java.io.IOException;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -13,10 +16,15 @@ public class IDEGeneradorBD extends JFrame {
     private JTextArea areaErrores;
     private JButton btnCompilar;
     private JButton btnEjecutar;
+    private JButton btnGenerarPython;
+    private TParser parser;
+
 
     private String dbUrl = "jdbc:postgresql://localhost:5432/";
     private String dbUsuario = "postgres";
     private String dbPassword = "";
+    private String dbName = "mi_base_de_datos";
+
 
     public IDEGeneradorBD() {
         try {
@@ -56,6 +64,111 @@ public class IDEGeneradorBD extends JFrame {
         btnCompilar = new JButton("Compilar");
         btnEjecutar = new JButton("Ejecutar");
         btnEjecutar.setEnabled(false);
+        btnGenerarPython = new JButton("Generar código Python");
+
+        // Acción del botón Generar código Python
+        btnGenerarPython.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                JFileChooser fileChooser = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+                fileChooser.setDialogTitle("Guardar archivo Python");
+                fileChooser.setSelectedFile(new java.io.File("crud_generado.py"));
+                int userSelection = fileChooser.showSaveDialog(null);
+                if (userSelection == JFileChooser.APPROVE_OPTION) {
+                    try (FileWriter writer = new FileWriter(fileChooser.getSelectedFile())) {
+
+                        writer.write("import psycopg2\n");
+                        writer.write("from tkinter import *\n\n");
+                        writer.write("conn = psycopg2.connect(\n");
+                        writer.write("    host='localhost',\n");
+                        writer.write("    database='" + dbName + "',\n");
+                        writer.write("    user='postgres',\n");
+                        writer.write("    password='" + dbPassword + "'\n");
+                        writer.write(")\n");
+                        writer.write("cursor = conn.cursor()\n\n");
+
+                        writer.write("root = Tk()\n");
+                        writer.write("root.title('CRUD generado')\n\n");
+
+                        int row = 0;
+                        for (Tabla tabla : parser.getTablas()) {
+                            String nombreTabla = tabla.getNombre();
+                            writer.write("# Tabla: " + nombreTabla + "\n");
+
+                            StringBuilder paramList = new StringBuilder();
+                            StringBuilder fieldList = new StringBuilder();
+                            StringBuilder placeholders = new StringBuilder();
+
+                            writer.write("Label(root, text='ID').grid(row=" + row + ", column=0)\n");
+                            writer.write("entry_id = Entry(root)\n");
+                            writer.write("entry_id.grid(row=" + row + ", column=1)\n");
+                            row++;
+
+                            for (Atributo attr : tabla.getAtributos()) {
+                                String nombreAttr = attr.getNombre();
+                                String tipoAttr = attr.getTipo();
+                                boolean esRef = tipoAttr.startsWith("ref(");
+                                String campoBD = esRef ? nombreAttr + "_id" : nombreAttr;
+
+                                writer.write("Label(root, text=\"" + nombreAttr + "\").grid(row=" + row + ", column=0)\n");
+                                writer.write("entry_" + nombreAttr + " = Entry(root)\n");
+                                writer.write("entry_" + nombreAttr + ".grid(row=" + row + ", column=1)\n");
+
+                                paramList.append(nombreAttr).append(", ");
+                                fieldList.append(campoBD).append(", ");
+                                placeholders.append("%s, ");
+                                row++;
+                            }
+
+                            String paramStr = paramList.toString().replaceAll(", $", "");
+                            String fieldStr = fieldList.toString().replaceAll(", $", "");
+                            String placeStr = placeholders.toString().replaceAll(", $", "");
+
+                            // INSERT
+                            writer.write("\ndef insertar():\n");
+                            for (Atributo attr : tabla.getAtributos()) {
+                                String nombreAttr = attr.getNombre();
+                                writer.write("    " + nombreAttr + " = entry_" + nombreAttr + ".get()\n");
+                            }
+                            writer.write("    cursor.execute(\"INSERT INTO " + nombreTabla + " (" + fieldStr + ") VALUES (" + placeStr + ")\", (" + paramStr + ",))\n");
+                            writer.write("    conn.commit()\n\n");
+
+                            // UPDATE
+                            writer.write("def actualizar():\n");
+                            writer.write("    id_val = entry_id.get()\n");
+                            for (Atributo attr : tabla.getAtributos()) {
+                                writer.write("    " + attr.getNombre() + " = entry_" + attr.getNombre() + ".get()\n");
+                            }
+                            StringBuilder setFields = new StringBuilder();
+                            for (Atributo attr : tabla.getAtributos()) {
+                                String campoBD = attr.getTipo().startsWith("ref(") ? attr.getNombre() + "_id" : attr.getNombre();
+                                setFields.append(campoBD).append(" = %s, ");
+                            }
+                            String setStr = setFields.toString().replaceAll(", $", "");
+                            writer.write("    cursor.execute(\"UPDATE " + nombreTabla + " SET " + setStr + " WHERE id = %s\", (" + paramStr + ", id_val))\n");
+                            writer.write("    conn.commit()\n\n");
+
+                            // DELETE
+                            writer.write("def eliminar():\n");
+                            writer.write("    id_val = entry_id.get()\n");
+                            writer.write("    cursor.execute(\"DELETE FROM " + nombreTabla + " WHERE id = %s\", (id_val,))\n");
+                            writer.write("    conn.commit()\n\n");
+
+                            // Botones
+                            writer.write("Button(root, text='Agregar', command=insertar).grid(row=" + row + ", column=0)\n");
+                            writer.write("Button(root, text='Actualizar', command=actualizar).grid(row=" + row + ", column=1)\n");
+                            row++;
+                            writer.write("Button(root, text='Eliminar', command=eliminar).grid(row=" + row + ", column=0, columnspan=2)\n\n");
+                            row += 2;
+                        }
+
+                        writer.write("root.mainloop()\n");
+
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
 
         JPanel panelBotones = new JPanel();
         panelBotones.setLayout(new BoxLayout(panelBotones, BoxLayout.Y_AXIS));
@@ -63,6 +176,8 @@ public class IDEGeneradorBD extends JFrame {
         panelBotones.add(btnCompilar);
         panelBotones.add(Box.createRigidArea(new Dimension(0, 10)));
         panelBotones.add(btnEjecutar);
+        panelBotones.add(Box.createRigidArea(new Dimension(0, 10)));
+        panelBotones.add(btnGenerarPython);
         panelBotones.add(Box.createVerticalGlue());
 
         // Añadir botones al centro entre las áreas
@@ -89,6 +204,7 @@ public class IDEGeneradorBD extends JFrame {
             }
         });
 
+
         // Agregar al frame
         add(panelCentroConBotones, BorderLayout.CENTER);
         add(scrollErrores, BorderLayout.SOUTH);
@@ -102,26 +218,24 @@ public class IDEGeneradorBD extends JFrame {
     String entrada = areaEntrada.getText();
     areaErrores.setText("");
     areaSQL.setText("");
-    btnEjecutar.setEnabled(false);
 
     if (entrada.isEmpty()) {
         areaErrores.setText("Error: No se ha escrito ninguna entrada.");
         return;
     }
 
-    // Redireccionar System.err para capturar errores de ANTLR
     PrintStream originalErr = System.err;
     ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
     System.setErr(new PrintStream(errBuffer));
-    
+
     boolean hayErrores = false;
     String resultadoSQL = "";
-    
+
     try {
         ANTLRInputStream input = new ANTLRInputStream(new ByteArrayInputStream(entrada.getBytes("UTF-8")));
         TLexer lexer = new TLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
-        TParser parser = new TParser(tokens);
+        parser = new TParser(tokens);
 
         ByteArrayOutputStream bufferSalida = new ByteArrayOutputStream();
         PrintStream originalOut = System.out;
@@ -129,44 +243,24 @@ public class IDEGeneradorBD extends JFrame {
 
         parser.inicio();
 
-
         System.setOut(originalOut);
-        
-        // Mostrar SQL generado
         resultadoSQL = bufferSalida.toString();
-        
-        if (resultadoSQL.contains("-- Error:")) {
-            hayErrores = true;
-            StringBuilder erroresEncontrados = new StringBuilder();
-            String[] lineas = resultadoSQL.split("\n");
-            for (String linea : lineas) {
-                if (linea.trim().startsWith("-- Error:")) {
-                    erroresEncontrados.append(linea.trim().substring(3).trim()).append("\n");
-                }
-            }
-            areaErrores.setText(erroresEncontrados.toString());
-        }
-        
         areaSQL.setText(resultadoSQL);
-        
+
     } catch (Exception e) {
         hayErrores = true;
         if (e instanceof RecognitionException) {
-            // Error de sintaxis - mostrar posición
             RecognitionException re = (RecognitionException) e;
             areaErrores.setText("Error de sintaxis en línea " + re.line + ", columna " + re.charPositionInLine + "\n");
-        } else if (e instanceof RuntimeException && e.getMessage() != null && 
-                  e.getMessage().contains("errores semánticos")) {
-            // Error semántico personalizado - mostrar solo el mensaje principal
+        } else if (e instanceof RuntimeException && e.getMessage() != null &&
+                   e.getMessage().contains("errores semánticos")) {
             areaErrores.setText(e.getMessage() + "\n");
-            
-            // Extraer los mensajes de error específicos del buffer
+
             String errores = errBuffer.toString();
             if (!errores.isEmpty()) {
-                // Filtrar y simplificar los mensajes de error
                 String[] lineas = errores.split("\n");
                 for (String linea : lineas) {
-                    if (linea.trim().length() > 0 && !linea.contains("at ") && !linea.contains("Exception")) {
+                    if (!linea.contains("at ") && !linea.contains("Exception")) {
                         areaErrores.append(linea.trim() + "\n");
                     }
                 }
@@ -174,37 +268,29 @@ public class IDEGeneradorBD extends JFrame {
         } else {
             areaErrores.setText("Error: " + e.getMessage() + "\n");
         }
+
     } finally {
         System.setErr(originalErr);
-        
-        if (!hayErrores || areaErrores.getText().isEmpty()) {
-            String errores = errBuffer.toString();
-            if (!errores.isEmpty()) {
-                hayErrores = true;
-                StringBuilder mensajesSimplificados = new StringBuilder();
-                String[] lineas = errores.split("\n");
-                for (String linea : lineas) {
-                    if (!linea.trim().startsWith("at ") && !linea.isEmpty()) {
-                        mensajesSimplificados.append(linea.trim()).append("\n");
-                    }
-                }
-                
-                if (mensajesSimplificados.length() > 0) {
-                    areaErrores.setText(mensajesSimplificados.toString());
+
+        // Si no se detectaron errores, mostrar resumen y activar botón
+        if (!hayErrores) {
+            StringBuilder resumen = new StringBuilder("== RESUMEN DE TABLAS ==\n");
+            for (Tabla tabla : parser.getTablas()) {
+                resumen.append("Tabla: ").append(tabla.getNombre()).append("\n");
+                for (Atributo atrib : tabla.getAtributos()) {
+                    resumen.append("<Atributo>  ").append(atrib.getNombre())
+                           .append(" \t<TipoAtrib> ").append(atrib.getTipo()).append("\n");
                 }
             }
+            areaErrores.setText(resumen.toString());
+            btnEjecutar.setEnabled(true);
         }
     }
-    
-    if (!hayErrores && !resultadoSQL.trim().isEmpty()) {
-        btnEjecutar.setEnabled(true);
-        areaErrores.setText("Compilación exitosa.\n");
-    }
- }
+}
 
     private void ejecutar() {
     String sql = areaSQL.getText();
-    
+
     try {
         String[] lineas = sql.split("\n");
         String nombreBD = null;
@@ -213,8 +299,7 @@ public class IDEGeneradorBD extends JFrame {
                 String[] partes = linea.split(" ");
                 if (partes.length >= 3) {
                     nombreBD = partes[2].trim().replace(";", "");
-                    // Sanitizar el nombre para evitar problemas de codificación
-                    nombreBD = nombreBD.replaceAll("[^a-zA-Z0-9_]", "_");
+                    nombreBD = nombreBD.replaceAll("[^a-zA-Z0-9_]", "_"); // Sanitizar
                 }
                 break;
             }
@@ -225,22 +310,25 @@ public class IDEGeneradorBD extends JFrame {
             return;
         }
 
+        dbName = nombreBD; // ✅ GUARDAR NOMBRE PARA USO EN PYTHON
+
         int confirmacion = JOptionPane.showConfirmDialog(this,
                 "Se creará la base de datos '" + nombreBD + "'. ¿Desea continuar?",
                 "Confirmar creación de BD", JOptionPane.YES_NO_OPTION);
-        
+
         if (confirmacion != JOptionPane.YES_OPTION) {
             return;
         }
-        
+
         String password = dbPassword;
         if (password.isEmpty()) {
             JPasswordField passwordField = new JPasswordField();
-            int option = JOptionPane.showConfirmDialog(this, passwordField, 
+            int option = JOptionPane.showConfirmDialog(this, passwordField,
                     "Ingrese la contraseña de PostgreSQL", JOptionPane.OK_CANCEL_OPTION);
-            
+
             if (option == JOptionPane.OK_OPTION) {
                 password = new String(passwordField.getPassword());
+                dbPassword = password; // ✅ GUARDAR CONTRASEÑA PARA USO EN PYTHON
             } else {
                 return;
             }
@@ -249,7 +337,7 @@ public class IDEGeneradorBD extends JFrame {
         areaErrores.setText("Conectando a PostgreSQL...\n");
         Connection conn = DriverManager.getConnection(dbUrl + "postgres", dbUsuario, password);
         Statement stmt = conn.createStatement();
-        
+
         try {
             stmt.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='" + nombreBD + "'");
             stmt.executeUpdate("DROP DATABASE IF EXISTS " + nombreBD);
@@ -260,64 +348,61 @@ public class IDEGeneradorBD extends JFrame {
             conn.close();
             return;
         }
-        
+
         stmt.close();
         conn.close();
-        
+
         areaErrores.setText("Base de datos '" + nombreBD + "' creada. Ejecutando sentencias SQL...\n");
 
         conn = DriverManager.getConnection(dbUrl + nombreBD, dbUsuario, password);
-        conn.setAutoCommit(false); // Para manejar transacciones
+        conn.setAutoCommit(false);
         stmt = conn.createStatement();
 
         StringBuilder currentStatement = new StringBuilder();
         for (String linea : lineas) {
             linea = linea.trim();
-            
+
             if (linea.isEmpty() || linea.startsWith("--") || linea.startsWith("\\")) {
                 continue;
             }
-            
+
             if (linea.toLowerCase().startsWith("create database")) {
                 continue;
             }
-            
-            // Acumular líneas hasta encontrar un punto y coma
+
             currentStatement.append(linea);
-            
+
             if (linea.endsWith(";")) {
                 String sentencia = currentStatement.toString();
                 try {
                     stmt.execute(sentencia);
-                    areaErrores.append("Sentencia ejecutada: " + 
-                        sentencia.substring(0, Math.min(50, sentencia.length())) + 
-                        (sentencia.length() > 50 ? "...\n" : "\n"));
+                    areaErrores.append("Sentencia ejecutada: " +
+                            sentencia.substring(0, Math.min(50, sentencia.length())) +
+                            (sentencia.length() > 50 ? "...\n" : "\n"));
                 } catch (SQLException e) {
                     areaErrores.append("Error en sentencia: " + sentencia + "\n" + e.getMessage() + "\n");
                 }
                 currentStatement = new StringBuilder();
             } else {
-                // Agregar un espacio para mantener el formato
                 currentStatement.append(" ");
             }
         }
 
-        // Ejecutar la última sentencia si quedó algo pendiente
         if (currentStatement.length() > 0) {
             String sentencia = currentStatement.toString().trim();
             if (!sentencia.isEmpty()) {
                 try {
                     stmt.execute(sentencia);
-                    areaErrores.append("Sentencia ejecutada: " + 
-                        sentencia.substring(0, Math.min(50, sentencia.length())) + 
-                        (sentencia.length() > 50 ? "...\n" : "\n"));
+                    areaErrores.append("Sentencia ejecutada: " +
+                            sentencia.substring(0, Math.min(50, sentencia.length())) +
+                            (sentencia.length() > 50 ? "...\n" : "\n"));
                 } catch (SQLException e) {
                     areaErrores.append("Error en sentencia: " + sentencia + "\n" + e.getMessage() + "\n");
                 }
             }
         }
 
-        conn.commit(); 
+        conn.commit();
         stmt.close();
         conn.close();
 
@@ -326,7 +411,7 @@ public class IDEGeneradorBD extends JFrame {
     } catch (SQLException e) {
         areaErrores.setText("Error SQL:\n" + e.getMessage() + "\n");
         e.printStackTrace();
-        
+
         JTextArea textArea = new JTextArea(10, 50);
         textArea.setText(e.toString());
         textArea.setEditable(false);
@@ -334,6 +419,7 @@ public class IDEGeneradorBD extends JFrame {
         JOptionPane.showMessageDialog(this, scrollPane, "Error Detallado", JOptionPane.ERROR_MESSAGE);
     }
 }
+
 
     private void agregarMenuConexion() {
     JMenuBar menuBar = new JMenuBar();
